@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>암산 퀴즈 — 곱셈/제곱/거듭제곱</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, sans-serif; margin: 24px; }
+    #app { max-width: 520px; margin: 0 auto; }
+    .q { font-size: 28px; font-weight: 700; margin: 16px 0; }
+    .row { display: flex; gap: 8px; }
+    input[type="number"], input[type="text"] { flex: 1; padding: 10px 12px; font-size: 16px; }
+    button { padding: 10px 14px; font-size: 16px; cursor: pointer; }
+    .msg { margin-top: 12px; font-weight: 700; }
+    .ok { color: #2e7d32; }
+    .bad { color: #c62828; }
+    .hint { color: #6b7280; font-size: 13px; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div id="app" role="application">
+    <h1 style="margin:0">암산 퀴즈</h1>
+    <p class="hint">무작위 유형: (10ⁿ−a)(10ⁿ+a) (n=1,2, a=1–9) / n² (n=2–19) / 2ⁿ (n=2–11)</p>
+
+    <div class="q" id="q">시작을 누르세요.</div>
+
+    <div class="row">
+      <input id="answer" type="number" inputmode="numeric" placeholder="정답 입력" disabled />
+      <button id="submit" disabled>제출</button>
+      <button id="next">다음 문제</button>
+    </div>
+
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+
+    const state = { current: null };
+
+    function randint(lo, hi) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }
+
+    function makeProblem() {
+      // 0: (10^n - a)(10^n + a), 1: n^2, 2: 2^n
+      const mode = randint(0, 2);
+      if (mode === 0) {
+        const n = randint(1, 2);
+        const ten = 10 ** n;
+        const a = randint(1, 9);
+        const x = ten - a;
+        const y = ten + a;
+        return { text: `${x} × ${y} = ?`, answer: ten ** 2 - a * a };
+      } else if (mode === 1) {
+        const n = randint(2, 19);
+        return { text: `${n} × ${n} = ?`, answer: n * n };
+      } else {
+        const n = randint(2, 11);
+        return { text: `2^${n} = ?`, answer: 2 ** n };
+      }
+    }
+
+    function next() {
+      state.current = makeProblem();
+      $('#q').textContent = state.current.text;
+      $('#answer').value = '';
+      $('#answer').disabled = false;
+      $('#submit').disabled = false;
+      $('#msg').textContent = '';
+      $('#answer').focus();
+    }
+
+    function submit() {
+      if (!state.current) return;
+      const raw = $('#answer').value.trim();
+      if (!raw) return;
+      const val = Number(raw);
+      const ok = Number.isFinite(val) && val === state.current.answer;
+      const msg = ok ? '정답' : `틀렸습니다. 정답: ${state.current.answer}`;
+      $('#msg').textContent = msg;
+      $('#msg').className = 'msg ' + (ok ? 'ok' : 'bad');
+      $('#answer').disabled = true;
+      $('#submit').disabled = true;
+      $('#next').focus();
+    }
+
+    $('#next').addEventListener('click', next);
+    $('#submit').addEventListener('click', submit);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (!$('#submit').disabled) submit();
+        else if (!$('#next').disabled) next();
+      }
+    });
+
+    next();
+  </script>
+</body>
+</html>
