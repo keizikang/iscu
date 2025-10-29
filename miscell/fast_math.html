@@ -20,7 +20,7 @@
 <body>
   <div id="app" role="application">
     <h1 style="margin:0">암산 퀴즈</h1>
-    <p class="hint">무작위 유형: (10ⁿ−a)(10ⁿ+a) (n=1,2, a=1–9) / n² (n=2–19) / 2ⁿ (n=2–11)</p>
+    <p class="hint">무작위 유형: (10ⁿ±a)(10ⁿ±a), (10ⁿ−a)(10ⁿ+a), n², 2ⁿ  — n=1,2 또는 지정 범위</p>
 
     <div class="q" id="q">시작을 누르세요.</div>
 
@@ -41,8 +41,12 @@
     function randint(lo, hi) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }
 
     function makeProblem() {
-      // 0: (10^n - a)(10^n + a), 1: n^2, 2: 2^n
-      const mode = randint(0, 2);
+      // 0: (10^n - a)(10^n + a)
+      // 1: n^2
+      // 2: 2^n
+      // 3: (10^n + a)^2
+      // 4: (10^n - a)^2
+      const mode = randint(0, 4);
       if (mode === 0) {
         const n = randint(1, 2);
         const ten = 10 ** n;
@@ -53,9 +57,21 @@
       } else if (mode === 1) {
         const n = randint(2, 19);
         return { text: `${n} × ${n} = ?`, answer: n * n };
-      } else {
+      } else if (mode === 2) {
         const n = randint(2, 11);
         return { text: `2^${n} = ?`, answer: 2 ** n };
+      } else if (mode === 3) {
+        const n = randint(1, 2);
+        const ten = 10 ** n;
+        const a = randint(1, 9);
+        const x = ten + a;
+        return { text: `${x} × ${x} = ?`, answer: x * x };
+      } else {
+        const n = randint(1, 2);
+        const ten = 10 ** n;
+        const a = randint(1, 9);
+        const x = ten - a;
+        return { text: `${x} × ${x} = ?`, answer: x * x };
       }
     }
 
