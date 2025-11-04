@@ -20,14 +20,14 @@
 <body>
   <div id="app" role="application">
     <h1 style="margin:0">암산 퀴즈</h1>
-    <p class="hint">무작위 유형: (10ⁿ±a)(10ⁿ±a), (10ⁿ−a)(10ⁿ+a), n², 2ⁿ, 이차방정식  — n=1,2 또는 지정 범위</p>
+    <p class="hint">무작위로 여러 유형의 문제를 출제합니다.</p>
 
-    <div class="q" id="q">시작을 누르세요.</div>
+    <div class="q" id="q">다음 문제를 눌러 시작하세요.</div>
 
     <div class="row">
       <input id="answer" type="text" placeholder="정답 입력 (예: 2,3)" disabled />
       <button id="submit" disabled>제출</button>
-      <button id="next">다음 문제</button>
+      <button id="next" type="button">다음 문제</button>
     </div>
 
     <div id="msg" class="msg"></div>
@@ -35,19 +35,29 @@
 
   <script>
     const $ = (s) => document.querySelector(s);
-
     const state = { current: null };
+
+    // 출제 비율을 직접 지정 (가중치)
+    // 0:(10^n−a)(10^n+a), 1:n², 2:2ⁿ, 3:(10^n+a)², 4:(10^n−a)², 5:이차방정식
+    const WEIGHT = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 3 };
 
     function randint(lo, hi) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }
 
+    function weightedChoice(weightMap) {
+      const modes = Object.keys(weightMap).map(Number);
+      const weights = modes.map(k => Math.max(0, Number(weightMap[k] || 0)));
+      const total = weights.reduce((a, b) => a + b, 0);
+      let r = Math.random() * total;
+      for (let i = 0; i < modes.length; i++) {
+        r -= weights[i];
+        if (r < 0) return modes[i];
+      }
+      return modes[modes.length - 1];
+    }
+
     function makeProblem() {
-      // 0: (10^n - a)(10^n + a)
-      // 1: n^2
-      // 2: 2^n
-      // 3: (10^n + a)^2
-      // 4: (10^n - a)^2
-      // 5: quadratic equation x^2 + bx + c = 0
-      const mode = randint(0, 5);
+      const mode = weightedChoice(WEIGHT);
+
       if (mode === 0) {
         const n = randint(1, 2);
         const ten = 10 ** n;
@@ -74,7 +84,6 @@
         const x = ten - a;
         return { text: `${x} × ${x} = ?`, answer: (x * x).toString() };
       } else {
-        // quadratic equation with integer roots between -9 and 9
         let r1 = randint(-9, 9);
         let r2 = randint(-9, 9);
         while (r1 === 0 && r2 === 0) { r1 = randint(-9, 9); r2 = randint(-9, 9); }
@@ -83,7 +92,7 @@
         const bstr = b === 0 ? '' : (b > 0 ? ` + ${b}x` : ` - ${Math.abs(b)}x`);
         const cstr = c === 0 ? '' : (c > 0 ? ` + ${c}` : ` - ${Math.abs(c)}`);
         const text = `x²${bstr}${cstr} = 0\n(두 근을 입력, 예: -3,5)`;
-        const ans = [r1, r2].sort((a,b)=>a-b).join(',');
+        const ans = [r1, r2].sort((a, b) => a - b).join(',');
         return { text, answer: ans };
       }
     }
@@ -102,9 +111,9 @@
       if (!state.current) return;
       const raw = $('#answer').value.trim();
       if (!raw) return;
-      let val = raw.replace(/\s+/g,'');
+      let val = raw.replace(/\s+/g, '');
       if (val.includes(',')) {
-        const parts = val.split(',').map(Number).sort((a,b)=>a-b);
+        const parts = val.split(',').map(Number).sort((a, b) => a - b);
         val = parts.join(',');
       }
       const ok = val === state.current.answer;
@@ -121,12 +130,17 @@
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        if (!$('#submit').disabled) submit();
-        else if (!$('#next').disabled) next();
+        if (!$('#submit').disabled) {
+          e.preventDefault();
+          submit();
+        } else {
+          e.preventDefault();
+          next();
+        }
       }
     });
 
-    next();
+    $('#q').textContent = '다음 문제를 눌러 시작하세요.';
   </script>
 </body>
 </html>
