@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>암산 퀴즈 — 곱셈/제곱/거듭제곱</title>
+  <title>암산 퀴즈 — 곱셈/제곱/거듭제곱/이차방정식</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, sans-serif; margin: 24px; }
-    #app { max-width: 520px; margin: 0 auto; }
-    .q { font-size: 28px; font-weight: 700; margin: 16px 0; }
+    #app { max-width: 600px; margin: 0 auto; }
+    .q { font-size: 26px; font-weight: 700; margin: 16px 0; white-space: pre-line; }
     .row { display: flex; gap: 8px; }
-    input[type="number"], input[type="text"] { flex: 1; padding: 10px 12px; font-size: 16px; }
+    input[type="text"] { flex: 1; padding: 10px 12px; font-size: 16px; }
     button { padding: 10px 14px; font-size: 16px; cursor: pointer; }
     .msg { margin-top: 12px; font-weight: 700; }
     .ok { color: #2e7d32; }
@@ -20,12 +20,12 @@
 <body>
   <div id="app" role="application">
     <h1 style="margin:0">암산 퀴즈</h1>
-    <p class="hint">무작위 유형: (10ⁿ±a)(10ⁿ±a), (10ⁿ−a)(10ⁿ+a), n², 2ⁿ  — n=1,2 또는 지정 범위</p>
+    <p class="hint">무작위 유형: (10ⁿ±a)(10ⁿ±a), (10ⁿ−a)(10ⁿ+a), n², 2ⁿ, 이차방정식  — n=1,2 또는 지정 범위</p>
 
     <div class="q" id="q">시작을 누르세요.</div>
 
     <div class="row">
-      <input id="answer" type="number" inputmode="numeric" placeholder="정답 입력" disabled />
+      <input id="answer" type="text" placeholder="정답 입력 (예: 2,3)" disabled />
       <button id="submit" disabled>제출</button>
       <button id="next">다음 문제</button>
     </div>
@@ -46,32 +46,45 @@
       // 2: 2^n
       // 3: (10^n + a)^2
       // 4: (10^n - a)^2
-      const mode = randint(0, 4);
+      // 5: quadratic equation x^2 + bx + c = 0
+      const mode = randint(0, 5);
       if (mode === 0) {
         const n = randint(1, 2);
         const ten = 10 ** n;
         const a = randint(1, 9);
         const x = ten - a;
         const y = ten + a;
-        return { text: `${x} × ${y} = ?`, answer: ten ** 2 - a * a };
+        return { text: `${x} × ${y} = ?`, answer: (ten ** 2 - a * a).toString() };
       } else if (mode === 1) {
         const n = randint(2, 19);
-        return { text: `${n} × ${n} = ?`, answer: n * n };
+        return { text: `${n} × ${n} = ?`, answer: (n * n).toString() };
       } else if (mode === 2) {
         const n = randint(2, 11);
-        return { text: `2^${n} = ?`, answer: 2 ** n };
+        return { text: `2^${n} = ?`, answer: (2 ** n).toString() };
       } else if (mode === 3) {
         const n = randint(1, 2);
         const ten = 10 ** n;
         const a = randint(1, 9);
         const x = ten + a;
-        return { text: `${x} × ${x} = ?`, answer: x * x };
-      } else {
+        return { text: `${x} × ${x} = ?`, answer: (x * x).toString() };
+      } else if (mode === 4) {
         const n = randint(1, 2);
         const ten = 10 ** n;
         const a = randint(1, 9);
         const x = ten - a;
-        return { text: `${x} × ${x} = ?`, answer: x * x };
+        return { text: `${x} × ${x} = ?`, answer: (x * x).toString() };
+      } else {
+        // quadratic equation with integer roots between -9 and 9
+        let r1 = randint(-9, 9);
+        let r2 = randint(-9, 9);
+        while (r1 === 0 && r2 === 0) { r1 = randint(-9, 9); r2 = randint(-9, 9); }
+        const b = -(r1 + r2);
+        const c = r1 * r2;
+        const bstr = b === 0 ? '' : (b > 0 ? ` + ${b}x` : ` - ${Math.abs(b)}x`);
+        const cstr = c === 0 ? '' : (c > 0 ? ` + ${c}` : ` - ${Math.abs(c)}`);
+        const text = `x²${bstr}${cstr} = 0\n(두 근을 입력, 예: -3,5)`;
+        const ans = [r1, r2].sort((a,b)=>a-b).join(',');
+        return { text, answer: ans };
       }
     }
 
@@ -89,8 +102,12 @@
       if (!state.current) return;
       const raw = $('#answer').value.trim();
       if (!raw) return;
-      const val = Number(raw);
-      const ok = Number.isFinite(val) && val === state.current.answer;
+      let val = raw.replace(/\s+/g,'');
+      if (val.includes(',')) {
+        const parts = val.split(',').map(Number).sort((a,b)=>a-b);
+        val = parts.join(',');
+      }
+      const ok = val === state.current.answer;
       const msg = ok ? '정답' : `틀렸습니다. 정답: ${state.current.answer}`;
       $('#msg').textContent = msg;
       $('#msg').className = 'msg ' + (ok ? 'ok' : 'bad');
