@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Parallel Transport on S^2</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #1a1a1a; color: white; }
+        #ui-panel { position: absolute; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 8px; }
+        .control { margin-bottom: 10px; }
+        label { display: block; margin-bottom: 5px; font-size: 14px; }
+        input[type="range"] { width: 200px; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="ui-panel">
+        <div class="control">
+            <label>Colatitude (θ): <span id="theta-val">0.40</span></label>
+            <input type="range" id="theta-slider" min="0.05" max="1.57" step="0.01" value="0.4">
+        </div>
+        <div class="control">
+            <label>Progress (t): <span id="t-val">0.00</span></label>
+            <input type="range" id="t-slider" min="0" max="6.28318" step="0.01" value="0">
+        </div>
+        <div class="control">
+            <button id="play-btn">Play / Pause</button>
+        </div>
+        <div class="control">
+            <label>Holonomy (Δα): <span id="holonomy-val">0.00</span> rad</label>
+        </div>
+    </div>
+
+    <script>
+        // 1. Scene, Camera, Renderer 초기화
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(3, 2, 3);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        // 2. S^2 (Sphere) 생성
+        const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+        const sphereMat = new THREE.MeshBasicMaterial({ color: 0x4444ff, wireframe: true, transparent: true, opacity: 0.3 });
+        const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+        scene.add(sphere);
+
+        // 3. 변수 및 Object 설정
+        let theta = 0.4;
+        let t = 0;
+        let isPlaying = false;
+        const R = 1;
+
+        // 경로(Circle) Object
+        let pathLine;
+        
+        // Vector Object (ArrowHelper)
+        const arrowDir = new THREE.Vector3();
+        const arrowOrigin = new THREE.Vector3();
+        const movingArrow = new THREE.ArrowHelper(arrowDir, arrowOrigin, 0.5, 0xff0000, 0.1, 0.1);
+        const initialArrow = new THREE.ArrowHelper(arrowDir, arrowOrigin, 0.5, 0x888888, 0.1, 0.1);
+        scene.add(movingArrow);
+        scene.add(initialArrow);
+
+        // 4. Update 함수 (수학적 logic)
+        function updateSimulation() {
+            // 경로(Circle) 업데이트
+            if (pathLine) scene.remove(pathLine);
+            const pathGeo = new THREE.BufferGeometry();
+            const points = [];
+            for (let i = 0; i <= 64; i++) {
+                const angle = (i / 64) * Math.PI * 2;
+                points.push(new THREE.Vector3(
+                    R * Math.sin(theta) * Math.cos(angle),
+                    R * Math.cos(theta),
+                    -R * Math.sin(theta) * Math.sin(angle) // z축 방향 조정
+                ));
+            }
+            pathGeo.setFromPoints(points);
+            pathLine = new THREE.Line(pathGeo, new THREE.LineBasicMaterial({ color: 0xffff00 }));
+            scene.add(pathLine);
+
+            // Vector 계산 및 업데이트
+            const x = R * Math.sin(theta) * Math.cos(t);
+            const y = R * Math.cos(theta);
+            const z = -R * Math.sin(theta) * Math.sin(t);
+            arrowOrigin.set(x, y, z);
+
+            // Local basis vector (e_theta, e_phi)
+            const e_theta = new THREE.Vector3(
+                Math.cos(theta) * Math.cos(t),
+                -Math.sin(theta),
+                -Math.cos(theta) * Math.sin(t)
+            ).normalize();
+            
+            const e_phi = new THREE.Vector3(
+                -Math.sin(t),
+                0,
+                -Math.cos(t)
+            ).normalize();
+
+            // Parallel transport 식: alpha(t) = -t * cos(theta)
+            const alpha = -t * Math.cos(theta);
+            
+            // Vector V = cos(alpha)*e_theta + sin(alpha)*e_phi
+            arrowDir.copy(e_theta).multiplyScalar(Math.cos(alpha))
+                    .add(e_phi.clone().multiplyScalar(Math.sin(alpha))).normalize();
+
+            movingArrow.position.copy(arrowOrigin);
+            movingArrow.setDirection(arrowDir);
+
+            // t=0 일 때의 초기 vector 고정
+            if (t === 0) {
+                initialArrow.position.copy(arrowOrigin);
+                initialArrow.setDirection(arrowDir);
+            }
+
+            // UI 업데이트
+            document.getElementById('theta-val').innerText = theta.toFixed(2);
+            document.getElementById('t-val').innerText = t.toFixed(2);
+            
+            const holonomy = 2 * Math.PI * (1 - Math.cos(theta));
+            document.getElementById('holonomy-val').innerText = holonomy.toFixed(3);
+        }
+
+        // 5. Event Listeners
+        document.getElementById('theta-slider').addEventListener('input', (e) => {
+            theta = parseFloat(e.target.value);
+            t = 0; // theta가 바뀌면 t 초기화
+            document.getElementById('t-slider').value = 0;
+            updateSimulation();
+        });
+
+        document.getElementById('t-slider').addEventListener('input', (e) => {
+            t = parseFloat(e.target.value);
+            updateSimulation();
+        });
+
+        document.getElementById('play-btn').addEventListener('click', () => {
+            isPlaying = !isPlaying;
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 6. Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            if (isPlaying) {
+                t += 0.02;
+                if (t > Math.PI * 2) {
+                    t = Math.PI * 2;
+                    isPlaying = false;
+                    document.getElementById('t-slider').value = t;
+                } else {
+                    document.getElementById('t-slider').value = t;
+                }
+                updateSimulation();
+            }
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 초기화 실행
+        updateSimulation();
+        animate();
+    </script>
+</body>
+</html>
