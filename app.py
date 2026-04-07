@@ -107,7 +107,7 @@ def motor():
     voltage = max(-24.0, min(24.0, voltage))
 
     # Plant dynamics 업데이트
-    new_vel = (0.95 * current_current_vel) + (1.0 * voltage)
+    new_vel = (0.95 * current_vel) + (1.0 * voltage)
     motor_states[student_id] = new_vel 
     
     # Trap 3: Sensor Failure
