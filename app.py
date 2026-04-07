@@ -4,6 +4,8 @@ import random
 import time
 
 app = Flask(__name__)
+# 파일 최상단에 전역 변수 선언 (각 학생의 모터 속도를 저장할 공간)
+motor_states = {}
 
 # ==========================================
 # 1. Data Recovery (Function Data)
@@ -66,43 +68,56 @@ def windtunnel():
 
 # ==========================================
 # 3. Motor Velocity Control (PI Control)
-# URL: /api/motor?vel=...&v=...
+# URL: /api/motor?id=...&v=... (구동)
+# URL: /api/motor?id=...&reset=1 (초기화)
 # ==========================================
 @app.route('/api/motor', methods=['GET'])
 def motor():
-    vel_str = request.args.get('vel')
+    student_id = request.args.get('id')
     v_str = request.args.get('v')
+    reset_str = request.args.get('reset')
     
-    if vel_str is None or v_str is None:
-        return jsonify({"error": "vel and v parameters are required"}), 400
+    if student_id is None:
+        return jsonify({"error": "id parameter is required"}), 400
+
+    # [추가된 로직] 초기화 요청이 들어온 경우
+    if reset_str == '1' or reset_str.lower() == 'true':
+        motor_states[student_id] = 0.0
+        return jsonify({"velocity": 0.0, "message": "Motor has been reset to 0.0"})
+
+    # 구동 요청일 경우 v 파라미터 확인
+    if v_str is None:
+        return jsonify({"error": "v parameter is required unless resetting"}), 400
         
     try:
-        current_vel = float(vel_str)
         voltage = float(v_str)
     except ValueError:
-        return jsonify({"error": "parameters must be numbers"}), 400
+        return jsonify({"error": "v must be a number"}), 400
 
-    # Trap 1: Packet Loss (Timeout)
+    if student_id not in motor_states:
+        motor_states[student_id] = 0.0
+
+    current_vel = motor_states[student_id]
+
+    # Trap 1: Packet Loss
     if random.random() < 0.05:
-        # 의도적으로 응답을 주지 않고 에러 발생
         return jsonify({"error": "Gateway Timeout"}), 504
 
-    # Trap 2: Sensor Failure (String return)
-    if random.random() < 0.05:
-        return jsonify({"new_velocity": "SENSOR_FAIL"})
-
-    # Trap 3: Actuator Saturation (Voltage clipping)
-    # 모터에 인가되는 voltage를 -24V ~ +24V 로 제한
+    # Trap 2: Actuator Saturation (-24V ~ 24V)
     voltage = max(-24.0, min(24.0, voltage))
 
-    # Trap 4: First-order system dynamics & Steady-state error
-    # P-control만으로는 target velocity에 완벽히 도달할 수 없도록 설계된 동역학 모델
-    new_vel = (0.95 * current_vel) + (1.0 * voltage)
+    # Plant dynamics 업데이트
+    new_vel = (0.95 * current_current_vel) + (1.0 * voltage)
+    motor_states[student_id] = new_vel 
     
-    # Sensor noise 추가
-    new_vel += random.gauss(0, 0.3)
+    # Trap 3: Sensor Failure
+    if random.random() < 0.05:
+        return jsonify({"velocity": "SENSOR_FAIL"})
 
-    return jsonify({"new_velocity": new_vel})
+    # Sensor noise
+    noisy_vel = new_vel + random.gauss(0, 0.3)
 
+    return jsonify({"velocity": noisy_vel})
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
