@@ -81,7 +81,7 @@ def motor():
         return jsonify({"error": "id parameter is required"}), 400
 
     # [추가된 로직] 초기화 요청이 들어온 경우
-    if reset_str == '1' or reset_str.lower() == 'true':
+    if reset_str in ['1', 'true', 'True']:
         motor_states[student_id] = 0.0
         return jsonify({"velocity": 0.0, "message": "Motor has been reset to 0.0"})
 
