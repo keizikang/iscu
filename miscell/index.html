@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>최소 사다리 만들기</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --card: #ffffff; --ink: #1f2328; --muted: #6b7078;
+    --line: #c9ccd1; --rung: #8a8f98; --accent: #3a5ccc; --bad: #d62839; --good: #1f9d55;
+    --hover: rgba(58, 92, 204, 0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c; --card: #1f2227; --ink: #e8e9eb; --muted: #9aa0a8;
+      --line: #4a4f57; --rung: #8a8f98; --accent: #7d9bff; --bad: #ff5c6c; --good: #4cd17f;
+      --hover: rgba(125, 155, 255, 0.16);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .controls label { display: flex; align-items: center; gap: 6px; font-size: 0.95rem; }
+  select, button {
+    font: inherit; font-size: 0.92rem; padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  .stat span { display: block; font-size: 0.8rem; color: var(--muted); }
+  .stat b { font-size: 1.3rem; }
+  #status {
+    min-height: 2.8em; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 12px; line-height: 1.45;
+  }
+  #status.win { border-color: var(--good); }
+  .board-wrap {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 8px; overflow-x: auto; text-align: center;
+  }
+  svg { max-width: 100%; height: auto; user-select: none; }
+  .cell { fill: transparent; cursor: pointer; }
+  .cell:hover { fill: var(--hover); }
+  .token { cursor: pointer; }
+  .row-btns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+  details { margin-top: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p, details li { line-height: 1.6; color: var(--ink); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .hint-rung { animation: pulse 1s ease-in-out infinite; }
+  @media (max-width: 520px) { .stats { grid-template-columns: 1fr 1fr 1fr; } .stat b { font-size: 1.05rem; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>최소 사다리 만들기</h1>
+  <p class="sub">출발한 번호들이 목표 배치대로 도착하도록, 가로대를 가장 적게 써서 사다리를 완성하세요.</p>
+
+  <section class="controls">
+    <label>세로줄
+      <select id="nSel">
+        <option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option>
+      </select>
+    </label>
+    <label>난이도
+      <select id="diffSel">
+        <option value="easy">쉬움</option>
+        <option value="normal" selected>보통</option>
+        <option value="hard">어려움</option>
+      </select>
+    </label>
+    <button id="newBtn" class="primary">새 문제</button>
+    <button id="clearBtn">지우기</button>
+    <button id="hintBtn">힌트</button>
+    <button id="solveBtn">정답 보기</button>
+  </section>
+
+  <section class="stats">
+    <div class="stat"><span>목표: 최소 가로대</span><b id="minCount">-</b></div>
+    <div class="stat"><span>사용한 가로대</span><b id="useCount">-</b></div>
+    <div class="stat"><span>최소 사다리 가짓수</span><b id="wordCount">-</b></div>
+  </section>
+
+  <div id="status"></div>
+
+  <div class="board-wrap"><svg id="board" xmlns="http://www.w3.org/2000/svg"></svg></div>
+  <div class="row-btns">
+    <button id="addRow">+ 층 추가</button>
+    <button id="delRow">− 층 제거</button>
+  </div>
+
+  <details>
+    <summary>규칙과 수학 이야기</summary>
+    <ul>
+      <li>칸을 클릭하면 가로대가 생기고, 다시 클릭하면 지워집니다. 같은 층에서 이웃한 가로대는 둘 수 없습니다.</li>
+      <li>위쪽 번호를 클릭하면 그 번호의 경로가 강조됩니다.</li>
+      <li>아래쪽 원은 각 자리에 <b>도착해야 할 번호</b>입니다. 그 아래 ✓/✗가 현재 결과입니다.</li>
+    </ul>
+    <p>가로대 하나는 인접 호환 s<sub>i</sub> = (i, i+1)이고, 사다리는 이들의 곱입니다.
+      가로대 하나마다 역순쌍 수가 정확히 1씩 변하므로, 최소 가로대 수는 목표 배치의 <b>역순쌍 개수</b>와 같습니다.</p>
+    <p>사다리가 최소인 것은 <b>어떤 두 경로도 두 번 이상 엇갈리지 않는 것</b>과 같습니다.
+      두 번 엇갈리는 쌍이 있으면 그 두 가로대를 지워도 결과가 같습니다.</p>
+    <p>"최소 사다리 가짓수"는 가로대를 위에서부터 읽은 순서(축약 단어)가 서로 다른 최소 사다리의 개수입니다.</p>
+  </details>
+</main>
+
+<script>
+(() => {
+  const COLORS = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#0f9fa8', '#c9a100'];
+  const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦'];
+  const ROW_H = 34, GAP_X = 72, MX = 64, TOP = 64, BOTTOM_PAD = 96;
+  const $ = id => document.getElementById(id);
+
+  let n = 4, target = [], minInv = 0, rows = 6, rungs = [];
+  let highlight = new Set(), hint = null, message = null;
+  const memo = new Map();
+
+  // ---------- 순수 함수 ----------
+  const identity = k => [...Array(k).keys()];
+  function inversions(a) {
+    let c = 0;
+    for (let i = 0; i < a.length; i++) for (let j = i + 1; j < a.length; j++) if (a[i] > a[j]) c++;
+    return c;
+  }
+  // 축약 단어 개수: R(w) = Σ_{w[i] > w[i+1]} R(w·s_i), R(e) = 1
+  function countReduced(a) {
+    const key = a.join(',');
+    if (memo.has(key)) return memo.get(key);
+    let s = 0, any = false;
+    for (let i = 0; i < a.length - 1; i++) {
+      if (a[i] > a[i + 1]) {
+        any = true;
+        const b = a.slice(); [b[i], b[i + 1]] = [b[i + 1], b[i]];
+        s += countReduced(b);
+      }
+    }
+    if (!any) s = 1;
+    memo.set(key, s);
+    return s;
+  }
+  function diffRange(M, diff) {
+    const easyHi = Math.max(1, Math.round(M * 0.35));
+    const normLo = Math.min(M, easyHi + 1), normHi = Math.max(normLo, Math.round(M * 0.7));
+    const hardLo = Math.min(M, normHi + 1);
+    if (diff === 'easy') return [1, easyHi];
+    if (diff === 'normal') return [normLo, normHi];
+    return [hardLo, M];
+  }
+  // 역순쌍이 정확히 k개인 무작위 배치 (역순쌍을 늘리는 교환만 k번)
+  function randomPerm(k) {
+    const arr = identity(n);
+    for (let s = 0; s < k; s++) {
+      const c = [];
+      for (let i = 0; i < n - 1; i++) if (arr[i] < arr[i + 1]) c.push(i);
+      const i = c[Math.floor(Math.random() * c.length)];
+      [arr[i], arr[i + 1]] = [arr[i + 1], arr[i]];
+    }
+    return arr;
+  }
+  // 버블 정렬로 최소 사다리 (가로대 열 순서) 구하기
+  function bubbleWord(t) {
+    const a = t.slice(), swaps = [];
+    for (let pass = 0; pass < n; pass++)
+      for (let i = 0; i < n - 1; i++)
+        if (a[i] > a[i + 1]) { [a[i], a[i + 1]] = [a[i + 1], a[i]]; swaps.push(i); }
+    return swaps.reverse();
+  }
+
+  const xOf = p => MX + p * GAP_X;
+  const emptyRow = () => Array(n - 1).fill(false);
+  const rungCount = () => rungs.reduce((s, r) => s + r.filter(Boolean).length, 0);
+
+  function simulate() {
+    const at = identity(n);
+    const paths = Array.from({ length: n }, (_, t) => [[xOf(t), TOP]]);
+    const cross = new Map();
+    for (let r = 0; r < rows; r++) {
+      const y = TOP + (r + 0.5) * ROW_H;
+      for (let g = 0; g < n - 1; g++) {
+        if (!rungs[r][g]) continue;
+        const a = at[g], b = at[g + 1];
+        paths[a].push([xOf(g), y], [xOf(g + 1), y]);
+        paths[b].push([xOf(g + 1), y], [xOf(g), y]);
+        at[g] = b; at[g + 1] = a;
+        const key = Math.min(a, b) + ',' + Math.max(a, b);
+        if (!cross.has(key)) cross.set(key, []);
+        cross.get(key).push({ r, g });
+      }
+    }
+    const yEnd = TOP + rows * ROW_H;
+    for (let p = 0; p < n; p++) paths[at[p]].push([xOf(p), yEnd]);
+    return { at, paths, cross, yEnd };
+  }
+
+  function computeHint(sim) {
+    for (const [key, list] of sim.cross) {
+      if (list.length >= 2) {
+        const [a, b] = key.split(',').map(Number);
+        return { type: 'double', a, b, cells: list.slice(0, 2) };
+      }
+    }
+    const posT = []; target.forEach((t, p) => { posT[t] = p; });
+    for (const [key, list] of sim.cross) {
+      const [a, b] = key.split(',').map(Number);
+      if (posT[a] < posT[b]) return { type: 'extra', a, b, cells: list };
+    }
+    for (let a = 0; a < n; a++)
+      for (let b = a + 1; b < n; b++)
+        if (posT[a] > posT[b] && !sim.cross.has(a + ',' + b)) return { type: 'missing', a, b, cells: [] };
+    return null;
+  }
+
+  // ---------- 게임 진행 ----------
+  function newProblem() {
+    n = +$('nSel').value;
+    const M = n * (n - 1) / 2;
+    const [lo, hi] = diffRange(M, $('diffSel').value);
+    const prev = target.join(',');
+    let t, tries = 0;
+    do {
+      const k = lo + Math.floor(Math.random() * (hi - lo + 1));
+      t = randomPerm(k);
+    } while (t.join(',') === prev && ++tries < 20);
+    target = t;
+    minInv = inversions(target);
+    rows = Math.max(minInv + 3, 6);
+    rungs = Array.from({ length: rows }, emptyRow);
+    highlight = new Set(); hint = null; message = null;
+    $('minCount').textContent = minInv;
+    $('wordCount').textContent = countReduced(target).toLocaleString();
+    render();
+  }
+
+  function changed() { hint = null; highlight = new Set(); message = null; render(); }
+
+  function toggleCell(r, g) {
+    if (!rungs[r][g] && ((g > 0 && rungs[r][g - 1]) || (g < n - 2 && rungs[r][g + 1]))) {
+      message = '같은 층에서 이웃한 가로대는 함께 둘 수 없어요. 다른 층에 놓아 보세요.';
+      render();
+      return;
+    }
+    rungs[r][g] = !rungs[r][g];
+    changed();
+  }
+
+  function showSolution() {
+    const word = bubbleWord(target);
+    rows = Math.max(rows, word.length);
+    rungs = Array.from({ length: rows }, emptyRow);
+    word.forEach((g, i) => { rungs[i][g] = true; });
+    changed();
+    message = '버블 정렬로 만든 최소 사다리 예시예요. 땋임 관계 s<sub>i</sub>s<sub>i+1</sub>s<sub>i</sub> = s<sub>i+1</sub>s<sub>i</sub>s<sub>i+1</sub>를 이용해 다른 정답으로 바꿔 보세요.';
+    render();
+  }
+
+  function showHint() {
+    const sim = simulate();
+    hint = computeHint(sim);
+    highlight = hint ? new Set([hint.a, hint.b]) : new Set();
+    if (!hint) message = '고칠 곳이 없어요. 이미 최소 사다리입니다!';
+    else {
+      const A = CIRCLED[hint.a], B = CIRCLED[hint.b];
+      if (hint.type === 'double')
+        message = `💡 ${A}과 ${B}의 경로가 두 번 엇갈려요. 깜빡이는 가로대 두 개를 지워도 도착 결과는 그대로예요.`;
+      else if (hint.type === 'extra')
+        message = `💡 ${A}과 ${B}는 도착할 때 순서가 그대로여야 하는데, 지금 서로 엇갈리고 있어요.`;
+      else
+        message = `💡 ${A}과 ${B}는 도착할 때 순서가 바뀌어야 하는데, 아직 한 번도 엇갈리지 않았어요.`;
+    }
+    render();
+  }
+
+  // ---------- 그리기 ----------
+  function statusText(sim) {
+    const used = rungCount();
+    const ok = sim.at.every((t, p) => t === target[p]);
+    const correct = sim.at.filter((t, p) => t === target[p]).length;
+    if (ok && used === minInv) return { win: true, html: '🎉 <b>완벽해요!</b> 최소 사다리입니다. ★★★' };
+    if (ok) {
+      const ex = used - minInv;
+      const stars = ex <= 2 ? '★★☆' : '★☆☆';
+      return { win: false, html: `도착 배치는 맞았어요! 다만 가로대가 <b>${ex}개</b> 더 많아요. ${stars}<br>힌트를 눌러 낭비된 곳을 찾아보세요.` };
+    }
+    let html = `${n}자리 중 <b>${correct}자리</b>가 맞았어요.`;
+    if ((used - minInv) % 2 !== 0)
+      html += ' <span style="color:var(--muted)">(지금 가로대 개수의 홀짝이 최소 개수와 달라서, 이 개수로는 완성할 수 없어요.)</span>';
+    return { win: false, html };
+  }
+
+  function render() {
+    const sim = simulate();
+    const W = 2 * MX + (n - 1) * GAP_X;
+    const H = sim.yEnd + BOTTOM_PAD;
+    const svg = $('board');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+
+    const css = getComputedStyle(document.documentElement);
+    const cLine = css.getPropertyValue('--line').trim();
+    const cRung = css.getPropertyValue('--rung').trim();
+    const cMuted = css.getPropertyValue('--muted').trim();
+    const cBad = css.getPropertyValue('--bad').trim();
+    const cGood = css.getPropertyValue('--good').trim();
+    const cInk = css.getPropertyValue('--ink').trim();
+
+    let s = '';
+    s += `<text x="8" y="${TOP - 24}" font-size="12" fill="${cMuted}">출발</text>`;
+    s += `<text x="8" y="${sim.yEnd + 32}" font-size="12" fill="${cMuted}">목표</text>`;
+    s += `<text x="8" y="${sim.yEnd + 66}" font-size="12" fill="${cMuted}">결과</text>`;
+
+    for (let p = 0; p < n; p++)
+      s += `<line x1="${xOf(p)}" y1="${TOP}" x2="${xOf(p)}" y2="${sim.yEnd}" stroke="${cLine}" stroke-width="3"/>`;
+
+    for (let r = 0; r < rows; r++) {
+      const y = TOP + (r + 0.5) * ROW_H;
+      for (let g = 0; g < n - 1; g++)
+        if (rungs[r][g])
+          s += `<line x1="${xOf(g)}" y1="${y}" x2="${xOf(g + 1)}" y2="${y}" stroke="${cRung}" stroke-width="4" stroke-linecap="round"/>`;
+    }
+
+    const dim = highlight.size > 0;
+    for (let t = 0; t < n; t++) {
+      const on = highlight.has(t);
+      const pts = sim.paths[t].map(([x, y]) => `${x},${y}`).join(' ');
+      s += `<polyline points="${pts}" fill="none" stroke="${COLORS[t]}" stroke-width="${on ? 5 : 2.5}"
+              stroke-linejoin="round" opacity="${dim && !on ? 0.15 : 0.9}" pointer-events="none"/>`;
+    }
+
+    if (hint && hint.type === 'double') {
+      for (const { r, g } of hint.cells) {
+        const y = TOP + (r + 0.5) * ROW_H;
+        s += `<line class="hint-rung" x1="${xOf(g)}" y1="${y}" x2="${xOf(g + 1)}" y2="${y}" stroke="${cBad}" stroke-width="7" stroke-linecap="round" pointer-events="none"/>`;
+      }
+    }
+
+    for (let r = 0; r < rows; r++)
+      for (let g = 0; g < n - 1; g++)
+        s += `<rect class="cell" data-r="${r}" data-g="${g}" x="${xOf(g) + 5}" y="${TOP + r * ROW_H + 2}" width="${GAP_X - 10}" height="${ROW_H - 4}" rx="6"/>`;
+
+    for (let t = 0; t < n; t++) {
+      const on = highlight.has(t);
+      s += `<g class="token" data-t="${t}">
+              <circle cx="${xOf(t)}" cy="${TOP - 28}" r="15" fill="${COLORS[t]}" stroke="${on ? cInk : 'none'}" stroke-width="3"/>
+              <text x="${xOf(t)}" y="${TOP - 23}" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">${t + 1}</text>
+            </g>`;
+    }
+
+    for (let p = 0; p < n; p++) {
+      const t = target[p], ok = sim.at[p] === t;
+      s += `<circle cx="${xOf(p)}" cy="${sim.yEnd + 28}" r="15" fill="${COLORS[t]}"/>
+            <text x="${xOf(p)}" y="${sim.yEnd + 33}" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">${t + 1}</text>
+            <text x="${xOf(p)}" y="${sim.yEnd + 70}" text-anchor="middle" font-size="18" font-weight="700" fill="${ok ? cGood : cBad}">${ok ? '✓' : '✗'}</text>`;
+    }
+
+    svg.innerHTML = s;
+
+    $('useCount').textContent = rungCount();
+    const st = statusText(sim);
+    const box = $('status');
+    box.innerHTML = message ? `${message}<br><span style="color:var(--muted)">${st.html}</span>` : st.html;
+    box.classList.toggle('win', st.win);
+  }
+
+  // ---------- 이벤트 ----------
+  $('board').addEventListener('click', e => {
+    const cell = e.target.closest('.cell');
+    if (cell) { toggleCell(+cell.dataset.r, +cell.dataset.g); return; }
+    const tok = e.target.closest('.token');
+    if (tok) {
+      const t = +tok.dataset.t;
+      hint = null;
+      if (highlight.has(t)) highlight.delete(t); else highlight.add(t);
+      render();
+    }
+  });
+  $('newBtn').onclick = newProblem;
+  $('nSel').onchange = newProblem;
+  $('diffSel').onchange = newProblem;
+  $('clearBtn').onclick = () => { rungs = Array.from({ length: rows }, emptyRow); changed(); };
+  $('hintBtn').onclick = showHint;
+  $('solveBtn').onclick = showSolution;
+  $('addRow').onclick = () => { rungs.push(emptyRow()); rows++; render(); };
+  $('delRow').onclick = () => {
+    if (rows <= 1) return;
+    if (rungs[rows - 1].some(Boolean)) {
+      message = '맨 아래 층에 가로대가 있어서 지울 수 없어요.'; render(); return;
+    }
+    rungs.pop(); rows--; render();
+  };
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+
+  newProblem();
+})();
+</script>
+</body>
+</html>
